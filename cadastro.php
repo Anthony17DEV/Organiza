@@ -3,33 +3,47 @@ require 'conecta.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = $_POST['email'];
-    $senha = password_hash($_POST['senha'], PASSWORD_DEFAULT); 
+    $senha = password_hash($_POST['senha'], PASSWORD_DEFAULT);
 
     $stmt = $pdo->prepare("INSERT INTO usuarios (email, senha) VALUES (?, ?)");
     try {
         $stmt->execute([$email, $senha]);
-        $mensagem = "Cadastro realizado com sucesso! <a href='index.php'>Faça login</a>";
+        $sucesso = "Conta criada com sucesso!";
     } catch (Exception $e) {
-        $mensagem = "Erro ao cadastrar. O email já pode estar em uso.";
+        $erro = "Erro ao cadastrar. O e-mail já pode estar em uso.";
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cadastro - Organiza</title>
+    <link rel="stylesheet" href="css/login.css">
 </head>
 <body>
-    <h2>Criar Conta</h2>
-    <?php if(isset($mensagem)) echo "<p>$mensagem</p>"; ?>
-    <form method="POST">
-        <label>E-mail:</label><br>
-        <input type="email" name="email" required><br><br>
-        <label>Senha:</label><br>
-        <input type="password" name="senha" required><br><br>
-        <button type="submit">Cadastrar</button>
-    </form>
-    <p><a href="index.php">Já tenho uma conta</a></p>
+    <div class="container">
+        <h2>Nova Conta</h2>
+        
+        <?php 
+            if(isset($erro)) echo "<div class='alerta erro'>$erro</div>"; 
+            if(isset($sucesso)) echo "<div class='alerta sucesso'>$sucesso</div>"; 
+        ?>
+        
+        <form method="POST">
+            <div class="input-group">
+                <label>E-mail</label>
+                <input type="email" name="email" required placeholder="seu@email.com">
+            </div>
+            <div class="input-group">
+                <label>Senha</label>
+                <input type="password" name="senha" required placeholder="Crie uma senha forte">
+            </div>
+            <button type="submit">Cadastrar</button>
+        </form>
+        <p>Já tem uma conta? <a href="index.php">Faça login</a></p>
+    </div>
 </body>
 </html>

@@ -21,20 +21,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Organiza</title>
-</head>
+    <link rel="stylesheet" href="css/login.css">
 <body>
-    <h2>Login</h2>
-    <?php if(isset($erro)) echo "<p style='color:red;'>$erro</p>"; ?>
-    <form method="POST">
-        <label>E-mail:</label><br>
-        <input type="email" name="email" required><br><br>
-        <label>Senha:</label><br>
-        <input type="password" name="senha" required><br><br>
-        <button type="submit">Entrar</button>
-    </form>
-    <p><a href="cadastro.php">Criar nova conta</a></p>
+    <div class="container">
+        <h2>Entrar no Organiza</h2>
+        
+        <?php if(isset($erro)) echo "<div class='alerta erro'>$erro</div>"; ?>
+        
+        <form method="POST">
+            <div class="input-group">
+                <label>E-mail</label>
+                <input type="email" name="email" required placeholder="seu@email.com">
+            </div>
+            <div class="input-group">
+                <label>Senha</label>
+                <input type="password" name="senha" required placeholder="••••••••">
+            </div>
+            <button type="submit">Entrar</button>
+        </form>
+        <p>Não tem uma conta? <a href="cadastro.php">Crie agora</a></p>
+    </div>
 </body>
 </html>
