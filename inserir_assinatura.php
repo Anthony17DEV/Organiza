@@ -101,24 +101,34 @@ $assinaturas = $stmt_list->fetchAll();
 
                 <div class="history-box">
                     <h3>Minhas Assinaturas</h3>
-                    <table>
-                        <thead>
-                            <tr><th>Dia</th><th>Serviço</th><th>Valor</th><th>Ações</th></tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach($assinaturas as $a): ?>
-                            <tr>
-                                <td>Dia <?php echo $a['dia_vencimento']; ?></td>
-                                <td><strong><?php echo $a['nome']; ?></strong></td>
-                                <td>R$ <?php echo number_format($a['valor'], 2, ',', '.'); ?></td>
-                                <td>
-                                    <a href="?editar=<?php echo $a['id']; ?>">✏️</a>
-                                    <a href="?excluir=<?php echo $a['id']; ?>" onclick="return confirm('Apagar assinatura?')">🗑️</a>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <div class="table-container"> 
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Dia</th>
+                                    <th>Serviço</th>
+                                    <th>Valor</th>
+                                    <th style="text-align: center;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach($assinaturas as $a): ?>
+                                <tr>
+                                    <td>Dia <?php echo $a['dia_vencimento']; ?></td>
+                                    <td><strong><?php echo htmlspecialchars($a['nome']); ?></strong></td>
+                                    <td>R$ <?php echo number_format($a['valor'], 2, ',', '.'); ?></td>
+                                    <td style="text-align: center;">
+                                        <a href="inserir_assinatura.php?editar=<?php echo $a['id']; ?>" style="text-decoration: none; margin-right: 10px;">✏️</a>
+                                        <a href="inserir_assinatura.php?excluir=<?php echo $a['id']; ?>" onclick="return confirm('Apagar assinatura?')" style="text-decoration: none;">🗑️</a>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php if(count($assinaturas) == 0): ?>
+                                    <tr><td colspan="4" style="text-align:center;">Nenhuma assinatura cadastrada.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </main>
