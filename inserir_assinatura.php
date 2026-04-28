@@ -55,6 +55,7 @@ $assinaturas = $stmt_list->fetchAll();
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assinaturas - Organiza</title>
     <link rel="stylesheet" href="css/dashboard.css?v=<?php echo time(); ?>">
 </head>
@@ -66,6 +67,7 @@ $assinaturas = $stmt_list->fetchAll();
             <a href="inserir_gasto.php">Inserir Gastos</a>
             <a href="inserir_parcela.php">Inserir Parcelas</a>
             <a href="inserir_assinatura.php" class="ativo">Assinaturas Fixas</a>
+            <a href="familia.php">Família 🤝</a>
             <a href="notificacoes.php">Notificações</a>
             <a href="perfil.php">Meu Perfil</a>
             <a href="sair.php" style="margin-top: auto; color: #e74c3c;">Sair</a>
@@ -81,7 +83,7 @@ $assinaturas = $stmt_list->fetchAll();
                         <input type="hidden" name="id_editar" value="<?php echo $edit ? $edit['id'] : ''; ?>">
                         <div class="input-group">
                             <label>Nome do Serviço</label>
-                            <input type="text" name="nome" required placeholder="Ex: Netflix, Internet" value="<?php echo $edit ? $edit['nome'] : ''; ?>">
+                            <input type="text" name="nome" required placeholder="Ex: Netflix, Internet" value="<?php echo $edit ? htmlspecialchars($edit['nome']) : ''; ?>">
                         </div>
                         <div class="input-group">
                             <label>Valor Mensal</label>
@@ -93,9 +95,16 @@ $assinaturas = $stmt_list->fetchAll();
                         </div>
                         <div class="input-group">
                             <label>Categoria</label>
-                            <input type="text" name="categoria" placeholder="Ex: Streaming, Contas Fixas" value="<?php echo $edit ? $edit['categoria'] : ''; ?>">
+                            <input type="text" name="categoria" placeholder="Ex: Streaming, Contas Fixas" value="<?php echo $edit ? htmlspecialchars($edit['categoria']) : ''; ?>">
                         </div>
-                        <button type="submit" class="btn-salvar">Salvar Assinatura</button>
+                        
+                        <?php if($edit): ?>
+                            <div style="margin-bottom: 15px; text-align: right;">
+                                <a href="inserir_assinatura.php" style="font-size: 14px; color: #3498db; text-decoration: underline;">Cancelar Edição</a>
+                            </div>
+                        <?php endif; ?>
+
+                        <button type="submit" class="btn-salvar"><?php echo $edit ? "Salvar Alterações" : "Salvar Assinatura"; ?></button>
                     </form>
                 </div>
 
@@ -118,8 +127,8 @@ $assinaturas = $stmt_list->fetchAll();
                                     <td><strong><?php echo htmlspecialchars($a['nome']); ?></strong></td>
                                     <td>R$ <?php echo number_format($a['valor'], 2, ',', '.'); ?></td>
                                     <td style="text-align: center;">
-                                        <a href="inserir_assinatura.php?editar=<?php echo $a['id']; ?>" style="text-decoration: none; margin-right: 10px;">✏️</a>
-                                        <a href="inserir_assinatura.php?excluir=<?php echo $a['id']; ?>" onclick="return confirm('Apagar assinatura?')" style="text-decoration: none;">🗑️</a>
+                                        <a href="inserir_assinatura.php?editar=<?php echo $a['id']; ?>" style="text-decoration: none; margin-right: 10px; font-size: 1.1rem;">✏️</a>
+                                        <a href="inserir_assinatura.php?excluir=<?php echo $a['id']; ?>" onclick="return confirm('Apagar assinatura?')" style="text-decoration: none; font-size: 1.1rem;">🗑️</a>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -135,6 +144,13 @@ $assinaturas = $stmt_list->fetchAll();
     </div>
     <script>
         const inputValor = document.getElementById('valor');
+        
+        if(inputValor.value) {
+            let value = inputValor.value.replace(/\D/g, '');
+            value = (value / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            inputValor.value = value;
+        }
+
         inputValor.addEventListener('input', (e) => {
             let value = e.target.value.replace(/\D/g, '');
             value = (value / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

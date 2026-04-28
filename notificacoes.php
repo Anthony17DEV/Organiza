@@ -10,38 +10,85 @@ if (!isset($_SESSION['usuario_id'])) {
 $id_usuario = $_SESSION['usuario_id'];
 $mensagem = "";
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao']) && isset($_POST['id_gasto'])) {
-    $id_gasto = $_POST['id_gasto'];
-    $acao = $_POST['acao']; 
+if (isset($_GET['msg']) && $_GET['msg'] == 'limpo') {
+    $mensagem = "<div class='alerta sucesso'>🧹 Histórico de atividades limpo com sucesso!</div>";
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+
+    if (isset($_POST['acao']) && $_POST['acao'] == 'limpar_logs') {
+        $stmt_max_g = $pdo->prepare("SELECT MAX(id) FROM gastos WHERE id_usuario = ? OR id_usuario_conjunto = ?");
+        $stmt_max_g->execute([$id_usuario, $id_usuario]);
+        $max_gasto = $stmt_max_g->fetchColumn() ?: 0;
+
+        $stmt_max_p = $pdo->prepare("SELECT MAX(id) FROM parcelas WHERE id_usuario = ?");
+        $stmt_max_p->execute([$id_usuario]);
+        $max_parcela = $stmt_max_p->fetchColumn() ?: 0;
+
+        $stmt_upd = $pdo->prepare("UPDATE usuarios SET ultimo_id_gasto_visto = ?, ultimo_id_parcela_visto = ? WHERE id = ?");
+        $stmt_upd->execute([$max_gasto, $max_parcela, $id_usuario]);
+        
+        header("Location: notificacoes.php?msg=limpo");
+        exit;
+    }
     
-    $stmt_check = $pdo->prepare("SELECT g.*, u.nome as dono_nome, u.email as dono_email FROM gastos g JOIN usuarios u ON g.id_usuario = u.id WHERE g.id = ? AND g.id_usuario_conjunto = ? AND g.status_conjunto = 'pendente'");
-    $stmt_check->execute([$id_gasto, $id_usuario]);
-    $gasto = $stmt_check->fetch();
+    if (isset($_POST['acao_familia']) && isset($_POST['id_familia'])) {
+        $id_familia = $_POST['id_familia'];
+        $acao_fam = $_POST['acao_familia'];
 
-    if ($gasto) {
-        try {
-            if ($acao == 'aceitar') {
-                $metade = $gasto['valor'] / 2;
-                $nome_dono = !empty($gasto['dono_nome']) ? $gasto['dono_nome'] : explode('@', $gasto['dono_email'])[0];
+        if ($acao_fam == 'aceitar') {
+            $stmt = $pdo->prepare("UPDATE familia SET status = 'aceito' WHERE id = ? AND id_membro = ?");
+            $stmt->execute([$id_familia, $id_usuario]);
+            $mensagem = "<div class='alerta sucesso'>✅ Agora você tem um novo membro na sua família!</div>";
+        } else {
+            $stmt = $pdo->prepare("UPDATE familia SET status = 'recusado' WHERE id = ? AND id_membro = ?");
+            $stmt->execute([$id_familia, $id_usuario]);
+            $mensagem = "<div class='alerta sucesso'>🚫 Convite de família recusado.</div>";
+        }
+    }
+    
+    if (isset($_POST['acao']) && isset($_POST['id_gasto'])) {
+        $id_gasto = $_POST['id_gasto'];
+        $acao_gasto = $_POST['acao']; 
+        
+        $stmt_check = $pdo->prepare("SELECT g.*, u.nome as dono_nome, u.email as dono_email FROM gastos g JOIN usuarios u ON g.id_usuario = u.id WHERE g.id = ? AND g.id_usuario_conjunto = ? AND g.status_conjunto = 'pendente'");
+        $stmt_check->execute([$id_gasto, $id_usuario]);
+        $gasto = $stmt_check->fetch();
 
-                $stmt_update = $pdo->prepare("UPDATE gastos SET valor = ?, status_conjunto = 'aceito' WHERE id = ?");
-                $stmt_update->execute([$metade, $id_gasto]);
+        if ($gasto) {
+            try {
+                if ($acao_gasto == 'aceitar') {
+                    $metade = $gasto['valor'] / 2;
+                    $nome_dono = !empty($gasto['dono_nome']) ? $gasto['dono_nome'] : explode('@', $gasto['dono_email'])[0];
 
-                $obs = "Divisão: Recebido de " . $nome_dono;
-                $stmt_insert = $pdo->prepare("INSERT INTO gastos (id_usuario, nome, valor, data_gasto, tipo, is_conjunto, id_usuario_conjunto, status_conjunto, observacao) VALUES (?, ?, ?, ?, ?, 0, ?, 'aceito', ?)");
-                $stmt_insert->execute([$id_usuario, $gasto['nome'], $metade, $gasto['data_gasto'], $gasto['tipo'], $gasto['id_usuario'], $obs]);
+                    $stmt_update = $pdo->prepare("UPDATE gastos SET valor = ?, status_conjunto = 'aceito' WHERE id = ?");
+                    $stmt_update->execute([$metade, $id_gasto]);
 
-                $mensagem = "<div class='alerta sucesso'>✅ Divisão aceita! O valor foi dividido e R$ " . number_format($metade, 2, ',', '.') . " foi adicionado aos seus gastos.</div>";
-            } else {
-                $stmt_update = $pdo->prepare("UPDATE gastos SET status_conjunto = 'rejeitado' WHERE id = ?");
-                $stmt_update->execute([$id_gasto]);
-                $mensagem = "<div class='alerta sucesso'>🚫 Divisão recusada. O valor total ficou para quem enviou o gasto.</div>";
+                    $obs = "Divisão: Recebido de " . $nome_dono;
+                    $stmt_insert = $pdo->prepare("INSERT INTO gastos (id_usuario, nome, valor, data_gasto, tipo, is_conjunto, id_usuario_conjunto, status_conjunto, observacao) VALUES (?, ?, ?, ?, ?, 0, ?, 'aceito', ?)");
+                    $stmt_insert->execute([$id_usuario, $gasto['nome'], $metade, $gasto['data_gasto'], $gasto['tipo'], $gasto['id_usuario'], $obs]);
+
+                    $mensagem = "<div class='alerta sucesso'>✅ Divisão aceita! O valor foi dividido e R$ " . number_format($metade, 2, ',', '.') . " foi adicionado aos seus gastos.</div>";
+                } elseif ($acao_gasto == 'rejeitar') {
+                    $stmt_update = $pdo->prepare("UPDATE gastos SET status_conjunto = 'rejeitado' WHERE id = ?");
+                    $stmt_update->execute([$id_gasto]);
+                    $mensagem = "<div class='alerta sucesso'>🚫 Divisão recusada. O valor total ficou para quem enviou o gasto.</div>";
+                }
+            } catch (Exception $e) { 
+                $mensagem = "<div class='alerta erro'>Erro: " . $e->getMessage() . "</div>"; 
             }
-        } catch (Exception $e) { 
-            $mensagem = "<div class='alerta erro'>Erro: " . $e->getMessage() . "</div>"; 
         }
     }
 }
+
+$stmt_fam_pend = $pdo->prepare("
+    SELECT f.id as id_familia, u.nome, u.email 
+    FROM familia f 
+    JOIN usuarios u ON f.id_usuario = u.id 
+    WHERE f.id_membro = ? AND f.status = 'pendente'
+");
+$stmt_fam_pend->execute([$id_usuario]);
+$convites_familia = $stmt_fam_pend->fetchAll();
 
 $stmt_pendentes = $pdo->prepare("
     SELECT g.*, u.nome as dono_nome, u.email as dono_email 
@@ -52,29 +99,37 @@ $stmt_pendentes = $pdo->prepare("
 $stmt_pendentes->execute([$id_usuario]);
 $pendencias = $stmt_pendentes->fetchAll();
 
+$total_notificacoes = count($convites_familia) + count($pendencias);
+
+$stmt_user = $pdo->prepare("SELECT ultimo_id_gasto_visto, ultimo_id_parcela_visto FROM usuarios WHERE id = ?");
+$stmt_user->execute([$id_usuario]);
+$user_memoria = $stmt_user->fetch();
+
+$id_visto_gasto = $user_memoria['ultimo_id_gasto_visto'] ?? 0;
+$id_visto_parcela = $user_memoria['ultimo_id_parcela_visto'] ?? 0;
+
 $stmt_logs_gastos = $pdo->prepare("
     SELECT g.id, g.id_usuario, g.nome, g.valor, g.data_gasto as data_ref, g.is_conjunto, g.id_usuario_conjunto, g.status_conjunto, g.observacao, 'gasto' as tipo_log, u_dono.nome as dono_nome, u_conj.nome as conj_nome 
     FROM gastos g 
     JOIN usuarios u_dono ON g.id_usuario = u_dono.id 
     LEFT JOIN usuarios u_conj ON g.id_usuario_conjunto = u_conj.id 
-    WHERE g.id_usuario = ? OR g.id_usuario_conjunto = ?
+    WHERE (g.id_usuario = ? OR g.id_usuario_conjunto = ?) AND g.id > ?
 ");
-$stmt_logs_gastos->execute([$id_usuario, $id_usuario]);
+$stmt_logs_gastos->execute([$id_usuario, $id_usuario, $id_visto_gasto]);
 $logs_gastos = $stmt_logs_gastos->fetchAll(PDO::FETCH_ASSOC);
 
 $stmt_logs_parcelas = $pdo->prepare("
     SELECT id, id_usuario, nome, valor_parcela as valor, data_proxima_parcela as data_ref, 0 as is_conjunto, NULL as id_usuario_conjunto, 'solo' as status_conjunto, NULL as observacao, 'parcela' as tipo_log, NULL as dono_nome, NULL as conj_nome, total_parcelas
     FROM parcelas 
-    WHERE id_usuario = ?
+    WHERE id_usuario = ? AND id > ?
 ");
-$stmt_logs_parcelas->execute([$id_usuario]);
+$stmt_logs_parcelas->execute([$id_usuario, $id_visto_parcela]);
 $logs_parcelas = $stmt_logs_parcelas->fetchAll(PDO::FETCH_ASSOC);
 
 $logs_completos = array_merge($logs_gastos, $logs_parcelas);
 usort($logs_completos, function($a, $b) {
-    return $b['id'] <=> $a['id'];
+    return $b['id'] <=> $a['id']; 
 });
-
 $logs_completos = array_slice($logs_completos, 0, 30);
 ?>
 
@@ -107,7 +162,8 @@ $logs_completos = array_slice($logs_completos, 0, 30);
             <a href="inserir_gasto.php">Inserir Gastos</a>
             <a href="inserir_parcela.php">Inserir Parcelas</a>
             <a href="inserir_assinatura.php">Assinaturas Fixas</a>
-            <a href="notificacoes.php" class="ativo">Notificações <?php if(count($pendencias)>0) echo "<span style='background:#e74c3c; color:white; padding:2px 6px; border-radius:10px; font-size:12px; float:right;'>".count($pendencias)."</span>"; ?></a>
+            <a href="familia.php">Família 🤝</a>
+            <a href="notificacoes.php" class="ativo">Notificações <?php if($total_notificacoes > 0) echo "<span style='background:#e74c3c; color:white; padding:2px 6px; border-radius:10px; font-size:12px; float:right;'>".$total_notificacoes."</span>"; ?></a>
             <a href="perfil.php">Meu Perfil</a>
             <a href="sair.php" style="margin-top: auto; color: #e74c3c;">Sair do Sistema</a>
         </aside>
@@ -120,11 +176,25 @@ $logs_completos = array_slice($logs_completos, 0, 30);
                 
                 <div class="box-noti">
                     <h3>Aguardando sua ação</h3>
-                    <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">Convites para dividir gastos.</p>
+                    <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">Convites para dividir gastos ou entrar em famílias.</p>
                     
-                    <?php if (count($pendencias) == 0): ?>
+                    <?php if ($total_notificacoes == 0): ?>
                         <p style="text-align: center; color: #bdc3c7; margin-top: 30px;">Tudo limpo por aqui! 🎉</p>
                     <?php else: ?>
+                        
+                        <?php foreach ($convites_familia as $cf): ?>
+                            <div class="convite-card" style="border-left-color: #27ae60;">
+                                <h4>Convite para Família 🤝</h4>
+                                <p style="font-size: 14px; color: #555;"><strong><?php echo htmlspecialchars($cf['nome']); ?></strong> (<?php echo $cf['email']; ?>) quer adicionar você à família para dividirem gastos de forma fácil.</p>
+                                
+                                <form method="POST" class="botoes-acao" style="margin-top: 15px;">
+                                    <input type="hidden" name="id_familia" value="<?php echo $cf['id_familia']; ?>">
+                                    <button type="submit" name="acao_familia" value="recusar" class="btn-recusar">Recusar</button>
+                                    <button type="submit" name="acao_familia" value="aceitar" class="btn-aceitar">Aceitar</button>
+                                </form>
+                            </div>
+                        <?php endforeach; ?>
+
                         <?php foreach ($pendencias as $p): ?>
                             <?php 
                                 $metade = $p['valor'] / 2; 
@@ -152,14 +222,29 @@ $logs_completos = array_slice($logs_completos, 0, 30);
                                 </form>
                             </div>
                         <?php endforeach; ?>
+                        
                     <?php endif; ?>
                 </div>
 
                 <div class="box-noti">
-                    <h3>Logbook</h3>
-                    <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">Histórico das suas movimentações.</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div>
+                            <h3 style="margin: 0;">Logbook</h3>
+                            <p style="color: #7f8c8d; font-size: 14px; margin: 5px 0 0 0;">Histórico das suas movimentações.</p>
+                        </div>
+                        <?php if (count($logs_completos) > 0): ?>
+                            <form method="POST" style="margin: 0;">
+                                <input type="hidden" name="acao" value="limpar_logs">
+                                <button type="submit" class="btn-recusar" style="font-size: 12px; padding: 6px 12px;" onclick="return confirm('Tem certeza que deseja limpar o histórico visual? Seus gastos não serão apagados do sistema.')">🧹 Limpar</button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
                     
                     <ul class="log-list">
+                        <?php if (count($logs_completos) == 0): ?>
+                            <p style="text-align: center; color: #bdc3c7; margin-top: 30px;">Nenhuma atividade recente visualizada.</p>
+                        <?php endif; ?>
+
                         <?php foreach ($logs_completos as $log): ?>
                             <?php
                                 $icone = "📝";

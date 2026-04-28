@@ -70,18 +70,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt_users = $pdo->prepare("SELECT id, nome, email FROM usuarios WHERE id != ?");
-$stmt_users->execute([$id_usuario]);
+$stmt_user = $pdo->prepare("SELECT dia_reset FROM usuarios WHERE id = ?");
+$stmt_user->execute([$id_usuario]);
+$usuario = $stmt_user->fetch();
+$dia_reset = $usuario['dia_reset'] ?? 1;
+
+$dia_hoje = (int)date('d');
+
+if (!isset($_GET['mes'])) {
+    if ($dia_hoje < $dia_reset) {
+        $mes_filtro = date('m', strtotime("-1 month"));
+        $ano_filtro = date('Y', strtotime("-1 month"));
+    } else {
+        $mes_filtro = date('m');
+        $ano_filtro = date('Y');
+    }
+} else {
+    $mes_filtro = $_GET['mes'];
+    $ano_filtro = $_GET['ano'];
+}
+
+$data_inicio = "$ano_filtro-$mes_filtro-" . str_pad($dia_reset, 2, "0", STR_PAD_LEFT);
+$data_fim = date('Y-m-d', strtotime("+1 month -1 day", strtotime($data_inicio)));
+
+$stmt_users = $pdo->prepare("
+    SELECT DISTINCT u.id, u.nome, u.email 
+    FROM usuarios u
+    JOIN familia f ON (f.id_usuario = u.id OR f.id_membro = u.id)
+    WHERE (f.id_usuario = ? OR f.id_membro = ?) 
+      AND f.status = 'aceito' 
+      AND u.id != ?
+");
+$stmt_users->execute([$id_usuario, $id_usuario, $id_usuario]);
 $outros_usuarios = $stmt_users->fetchAll();
 
 $stmt_hist = $pdo->prepare("
     SELECT g.*, u.nome as nome_conjunto, u.email as email_conjunto 
     FROM gastos g 
     LEFT JOIN usuarios u ON g.id_usuario_conjunto = u.id 
-    WHERE g.id_usuario = ? 
-    ORDER BY g.data_gasto DESC, g.id DESC LIMIT 10
+    WHERE g.id_usuario = ? AND g.data_gasto BETWEEN ? AND ?
+    ORDER BY g.data_gasto DESC, g.id DESC
 ");
-$stmt_hist->execute([$id_usuario]);
+$stmt_hist->execute([$id_usuario, $data_inicio, $data_fim]);
 $historico = $stmt_hist->fetchAll();
 ?>
 
@@ -92,28 +122,59 @@ $historico = $stmt_hist->fetchAll();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inserir Gasto - Organiza</title>
     <link rel="stylesheet" href="css/dashboard.css?v=<?php echo time(); ?>">
+    <style>
+        .filtros-box { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .filtros-box select { padding: 8px; border-radius: 5px; border: 1px solid #ddd; }
+        .btn-filtrar { background: #27ae60; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    </style>
 </head>
 <body>
     <div class="dashboard-layout">
         <aside class="sidebar">
             <h3>Organiza</h3>
             <a href="dashboard.php">Visão Geral</a>
-            <a href="inserir_gasto.php" class="ativo">Inserir Gastos</a>
+            <a href="inserir_gasto.php" class="ativo" >Inserir Gastos</a>
             <a href="inserir_parcela.php">Inserir Parcelas</a>
             <a href="inserir_assinatura.php">Assinaturas Fixas</a>
+            <a href="familia.php">Família 🤝</a>
             <a href="notificacoes.php">Notificações</a>
             <a href="perfil.php">Meu Perfil</a>
             <a href="sair.php" style="margin-top: auto; color: #e74c3c;">Sair</a>
         </aside>
 
         <main class="main-content">
-            <h2><?php echo $gasto_edit ? "Editando Gasto ✏️" : "Gerenciar Gastos 💸"; ?></h2>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                <h2 style="margin: 0;"><?php echo $gasto_edit ? "Editando Gasto ✏️" : "Gerenciar Gastos 💸"; ?></h2>
+                <div style="text-align: right;">
+                    <small style="color: #888;">Ciclo atual:</small><br>
+                    <strong><?php echo date('d/m', strtotime($data_inicio)); ?> até <?php echo date('d/m', strtotime($data_fim)); ?></strong>
+                </div>
+            </div>
+            
             <?php echo $mensagem; ?>
+
+            <div class="filtros-box">
+                <form method="GET" style="display: flex; gap: 10px; align-items: center;">
+                    <select name="mes">
+                        <?php
+                        $meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                        for ($i = 1; $i <= 12; $i++) {
+                            $m = str_pad($i, 2, "0", STR_PAD_LEFT);
+                            echo "<option value='$m' ".($mes_filtro == $m ? 'selected' : '').">".$meses[$i-1]."</option>";
+                        }
+                        ?>
+                    </select>
+                    <select name="ano">
+                        <?php for($i=date('Y')-1; $i<=date('Y')+1; $i++) echo "<option value='$i' ".($ano_filtro == $i ? 'selected' : '').">$i</option>"; ?>
+                    </select>
+                    <button type="submit" class="btn-filtrar">Ver Período</button>
+                    <a href="inserir_gasto.php" style="font-size: 12px; color: #888; text-decoration: none;">Voltar ao Atual</a>
+                </form>
+            </div>
 
             <div class="layout-grid">
                 <div class="form-box">
                     <form method="POST" action="inserir_gasto.php">
-                        
                         <input type="hidden" name="id_editar" value="<?php echo $gasto_edit ? $gasto_edit['id'] : ''; ?>">
 
                         <div class="input-group">
@@ -122,9 +183,7 @@ $historico = $stmt_hist->fetchAll();
                         </div>
                         <div class="input-group">
                             <label>Valor</label>
-                            <?php 
-                                $valor_exibicao = $gasto_edit ? number_format($gasto_edit['valor'], 2, ',', '.') : ''; 
-                            ?>
+                            <?php $valor_exibicao = $gasto_edit ? number_format($gasto_edit['valor'], 2, ',', '.') : ''; ?>
                             <input type="text" name="valor" id="valor" required placeholder="R$ 0,00" value="<?php echo $valor_exibicao; ?>">
                         </div>
                         <div class="input-group">
@@ -164,7 +223,7 @@ $historico = $stmt_hist->fetchAll();
                 </div>
 
                 <div class="history-box">
-                    <h3>Últimos Gastos</h3>
+                    <h3>Gastos do Período</h3>
                     <div style="overflow-x: auto;">
                         <table>
                             <thead>
@@ -173,7 +232,8 @@ $historico = $stmt_hist->fetchAll();
                                     <th>Gasto</th>
                                     <th>Valor</th>
                                     <th>Status</th>
-                                    <th>Ações</th> </tr>
+                                    <th>Ações</th> 
+                                </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($historico as $h): ?>
@@ -209,6 +269,9 @@ $historico = $stmt_hist->fetchAll();
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
+                                <?php if(count($historico) == 0): ?>
+                                    <tr><td colspan="5" style="text-align:center; color:#888;">Nenhum gasto encontrado neste período.</td></tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>

@@ -10,6 +10,29 @@ if (!isset($_SESSION['usuario_id'])) {
 $id_usuario = $_SESSION['usuario_id'];
 $mensagem = "";
 
+$hoje = date('Y-m-d');
+$stmt_vencidas = $pdo->prepare("SELECT * FROM parcelas WHERE id_usuario = ? AND parcelas_pagas < total_parcelas AND data_proxima_parcela <= ?");
+$stmt_vencidas->execute([$id_usuario, $hoje]);
+$parcelas_vencidas = $stmt_vencidas->fetchAll();
+
+foreach ($parcelas_vencidas as $pv) {
+    $id_p = $pv['id'];
+    $data_prox = $pv['data_proxima_parcela'];
+    $pagas = $pv['parcelas_pagas'];
+    $total = $pv['total_parcelas'];
+
+    while (strtotime($data_prox) <= strtotime($hoje) && $pagas < $total) {
+        $pagas++;
+        if ($pagas < $total) {
+            $data_prox = date('Y-m-d', strtotime("+1 month", strtotime($data_prox)));
+        } else {
+            break; 
+        }
+    }
+    $stmt_upd = $pdo->prepare("UPDATE parcelas SET parcelas_pagas = ?, data_proxima_parcela = ? WHERE id = ?");
+    $stmt_upd->execute([$pagas, $data_prox, $id_p]);
+}
+
 if (isset($_GET['msg']) && $_GET['msg'] == 'excluido') {
     $mensagem = "<div class='alerta sucesso'>🗑️ Parcela excluída com sucesso!</div>";
 }
@@ -32,7 +55,6 @@ if (isset($_GET['editar'])) {
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nome = $_POST['nome'];
-    
     $valor_limpo = preg_replace('/[^0-9,]/', '', $_POST['valor_parcela']);
     $valor_final = str_replace(',', '.', $valor_limpo);
 
@@ -64,6 +86,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+$stmt_user = $pdo->prepare("SELECT dia_reset FROM usuarios WHERE id = ?");
+$stmt_user->execute([$id_usuario]);
+$dia_reset = $stmt_user->fetch()['dia_reset'] ?? 1;
+
+$dia_hoje = (int)date('d');
+if ($dia_hoje < $dia_reset) {
+    $mes_atual = date('m', strtotime("-1 month"));
+    $ano_atual = date('Y', strtotime("-1 month"));
+} else {
+    $mes_atual = date('m');
+    $ano_atual = date('Y');
+}
+$data_inicio = "$ano_atual-$mes_atual-" . str_pad($dia_reset, 2, "0", STR_PAD_LEFT);
+$data_fim = date('Y-m-d', strtotime("+1 month -1 day", strtotime($data_inicio)));
+
 $stmt_hist = $pdo->prepare("
     SELECT * FROM parcelas 
     WHERE id_usuario = ? AND parcelas_pagas < total_parcelas
@@ -84,6 +121,7 @@ $historico = $stmt_hist->fetchAll();
         .progress-text { font-weight: bold; color: #2c3e50; }
         .progress-bar-bg { background: #ecf0f1; border-radius: 10px; height: 8px; width: 100%; margin-top: 5px; overflow: hidden; }
         .progress-bar-fill { background: #27ae60; height: 100%; transition: width 0.3s; }
+        .filtros-box { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
@@ -92,15 +130,23 @@ $historico = $stmt_hist->fetchAll();
             <h3>Organiza</h3>
             <a href="dashboard.php">Visão Geral</a>
             <a href="inserir_gasto.php">Inserir Gastos</a>
-            <a href="inserir_parcela.php" class="ativo">Inserir Parcelas</a>
+            <a href="inserir_parcela.php" class="ativo" >Inserir Parcelas</a>
             <a href="inserir_assinatura.php">Assinaturas Fixas</a>
+            <a href="familia.php">Família 🤝</a>
             <a href="notificacoes.php">Notificações</a>
             <a href="perfil.php">Meu Perfil</a>
             <a href="sair.php" style="margin-top: auto; color: #e74c3c;">Sair</a>
         </aside>
 
         <main class="main-content">
-            <h2><?php echo $parcela_edit ? "Editando Parcela ✏️" : "Gerenciar Compras Parceladas 💳"; ?></h2>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                <h2 style="margin: 0;"><?php echo $parcela_edit ? "Editando Parcela ✏️" : "Gerenciar Compras Parceladas 💳"; ?></h2>
+                <div style="text-align: right;">
+                    <small style="color: #888;">Ciclo financeiro atual:</small><br>
+                    <strong><?php echo date('d/m', strtotime($data_inicio)); ?> até <?php echo date('d/m', strtotime($data_fim)); ?></strong>
+                </div>
+            </div>
+            
             <?php echo $mensagem; ?>
 
             <div class="layout-grid">

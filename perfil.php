@@ -13,12 +13,14 @@ $mensagem = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nome = $_POST['nome'];
     $email = $_POST['email'];
+    $dia_reset = (int)$_POST['dia_reset'];
     
     $limite_limpo = preg_replace('/[^0-9,]/', '', $_POST['limite_mensal']);
     $limite_final = str_replace(',', '.', $limite_limpo);
 
-    $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, limite_mensal = ? WHERE id = ?");
-    $stmt->execute([$nome, $email, $limite_final, $id_usuario]);
+    // Update principal
+    $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, limite_mensal = ?, dia_reset = ? WHERE id = ?");
+    $stmt->execute([$nome, $email, $limite_final, $dia_reset, $id_usuario]);
 
     if (!empty($_POST['senha'])) {
         $senha_hash = password_hash($_POST['senha'], PASSWORD_DEFAULT);
@@ -58,33 +60,31 @@ $caminho_foto = !empty($usuario['foto']) ? 'uploads/' . $usuario['foto'] : 'http
         .perfil-form { max-width: 500px; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         .input-group { margin-bottom: 15px; }
         .input-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
-        .input-group input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .input-group input, .input-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
         .btn-salvar { background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; }
         .foto-preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 15px; border: 3px solid #27ae60; }
     </style>
 </head>
 <body>
     <div class="dashboard-layout">
-        
         <aside class="sidebar">
             <h3>Organiza</h3>
             <a href="dashboard.php">Visão Geral</a>
             <a href="inserir_gasto.php">Inserir Gastos</a>
             <a href="inserir_parcela.php">Inserir Parcelas</a>
             <a href="inserir_assinatura.php">Assinaturas Fixas</a>
+            <a href="familia.php">Família 🤝</a>
             <a href="notificacoes.php">Notificações</a>
-            <a href="perfil.php" class="ativo">Meu Perfil</a>
+            <a href="perfil.php" class="ativo" >Meu Perfil</a>
             <a href="sair.php" style="margin-top: auto; color: #e74c3c;">Sair</a>
         </aside>
 
         <main class="main-content">
             <h2>Meu Perfil ⚙️</h2>
-            
             <?php echo $mensagem; ?>
 
             <div class="perfil-form">
                 <form method="POST" enctype="multipart/form-data">
-                    
                     <div style="text-align: center;">
                         <img src="<?php echo $caminho_foto; ?>" alt="Foto de Perfil" class="foto-preview"><br>
                         <input type="file" name="foto" accept="image/*" style="margin-bottom: 15px;">
@@ -92,13 +92,22 @@ $caminho_foto = !empty($usuario['foto']) ? 'uploads/' . $usuario['foto'] : 'http
 
                     <div class="input-group">
                         <label>Nome de Exibição</label>
-                        <input type="text" name="nome" value="<?php echo htmlspecialchars($usuario['nome'] ?? ''); ?>" placeholder="Seu nome">
+                        <input type="text" name="nome" value="<?php echo htmlspecialchars($usuario['nome'] ?? ''); ?>">
                     </div>
 
-                    <div class="input-group">
-                        <label>Quanto você pode gastar por mês? (Limite)</label>
-                        <input type="text" name="limite_mensal" id="limite_mensal" 
-                            value="<?php echo number_format($usuario['limite_mensal'], 2, ',', '.'); ?>" placeholder="R$ 0,00">
+                    <div style="display: flex; gap: 10px;">
+                        <div class="input-group" style="flex: 2;">
+                            <label>Limite Mensal</label>
+                            <input type="text" name="limite_mensal" id="limite_mensal" value="<?php echo number_format($usuario['limite_mensal'], 2, ',', '.'); ?>">
+                        </div>
+                        <div class="input-group" style="flex: 1;">
+                            <label>Dia de Reset</label>
+                            <select name="dia_reset">
+                                <?php for($i=1; $i<=31; $i++): ?>
+                                    <option value="<?php echo $i; ?>" <?php echo ($usuario['dia_reset'] == $i) ? 'selected' : ''; ?>><?php echo $i; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="input-group">
@@ -107,8 +116,8 @@ $caminho_foto = !empty($usuario['foto']) ? 'uploads/' . $usuario['foto'] : 'http
                     </div>
 
                     <div class="input-group">
-                        <label>Nova Senha (deixe em branco para não alterar)</label>
-                        <input type="password" name="senha" placeholder="Nova senha">
+                        <label>Nova Senha</label>
+                        <input type="password" name="senha" placeholder="Deixe em branco para manter">
                     </div>
 
                     <button type="submit" class="btn-salvar">Salvar Alterações</button>
